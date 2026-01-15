@@ -1,8 +1,15 @@
 from pydantic import BaseModel
 
-class OrbitRiskResponse(BaseModel):
-    orbit_shell: str
+class RiskMetrics(BaseModel):
     object_density: int
     congestion_index: float
     collision_probability: float
-    risk_level: str
+
+class RiskInfo(BaseModel):
+    level: str
+    color: str
+
+class OrbitRiskResponse(BaseModel):
+    orbit_shell: str
+    metrics: RiskMetrics
+    risk: RiskInfo
