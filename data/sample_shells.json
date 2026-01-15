@@ -1,0 +1,23 @@
+[
+  {
+    "shell": "LEO-200-400",
+    "altitude_min": 200,
+    "altitude_max": 400,
+    "base_density": 450,
+    "inclination_factor": 0.6
+  },
+  {
+    "shell": "LEO-400-600",
+    "altitude_min": 400,
+    "altitude_max": 600,
+    "base_density": 1420,
+    "inclination_factor": 0.9
+  },
+  {
+    "shell": "LEO-600-800",
+    "altitude_min": 600,
+    "altitude_max": 800,
+    "base_density": 980,
+    "inclination_factor": 0.75
+  }
+]
