@@ -1,3 +1,5 @@
 fastapi
 uvicorn
 pydantic
+sgp4
+skyfield

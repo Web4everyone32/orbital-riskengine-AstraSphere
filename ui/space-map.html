@@ -5,7 +5,6 @@
 
   <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
   <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
-
   <link rel="stylesheet" href="/static/astra.css">
 </head>
 
@@ -15,185 +14,171 @@
 
 <div id="panel">
   <h2>AstraSphere</h2>
-  <p class="subtitle">Orbital Intelligence Platform</p>
+  <p class="subtitle">Orbital & Earth Intelligence Platform</p>
 
   <div id="details">
-    Click a satellite
+    Multi-layer orbital context using representative satellite samples
   </div>
 
   <div class="legend">
-    <span style="color:green">● LOW RISK</span>
-    <span style="color:orange">● MEDIUM RISK</span>
-    <span style="color:red">● HIGH RISK</span>
-  </div>
-
-  <div class="risk-note">
-    Red orbital bands indicate regions of high object density and
-    elevated conjunction probability over the next 24–48 hours.
-  </div>
-
-  <div class="time-note">
-    Use the time slider to observe orbital motion and evolving
-    congestion context.
+    <span style="color:#ff9f1c">● Orbital Congestion</span>
+    <span style="color:#2ecc71">● Earth Data Reliability</span>
+    <span style="color:#ff3b30">● Risk Intelligence</span>
+    <span style="color:#3498db">● Reference / Coordination</span>
   </div>
 </div>
 
 <script>
-  const viewer = new Cesium.Viewer('cesiumContainer', {
-    timeline: true,
-    animation: true,
-    baseLayerPicker: false,
-    geocoder: false,
-    infoBox: false,
-    selectionIndicator: true
-  });
+/* =====================================================
+   BASE VIEWER (NASA-LIKE)
+   ===================================================== */
 
-  viewer.scene.globe.enableLighting = true;
-  viewer.scene.backgroundColor = Cesium.Color.BLACK;
+const viewer = new Cesium.Viewer("cesiumContainer", {
+  animation: true,
+  timeline: true,
+  baseLayerPicker: false,
+  geocoder: false,
+  homeButton: false,
+  sceneModePicker: false,
+  infoBox: false,
+  selectionIndicator: true,
+  imageryProvider: new Cesium.IonImageryProvider({ assetId: 2 })
+});
 
-  // --- LOCK CAMERA TO EARTH ---
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(0, 0, 15000000)
-  });
+viewer.scene.skyBox.show = false;
+viewer.scene.sun.show = false;
+viewer.scene.moon.show = false;
+viewer.scene.backgroundColor = Cesium.Color.BLACK;
 
-  viewer.scene.screenSpaceCameraController.enableRotate = true;
-  viewer.scene.screenSpaceCameraController.enableZoom = true;
+viewer.scene.globe.enableLighting = true;
+viewer.scene.skyAtmosphere.show = true;
+viewer.scene.globe.showGroundAtmosphere = true;
 
-  const satelliteEntities = {};
+viewer.clock.multiplier = 120;
+viewer.clock.shouldAnimate = true;
 
-  // --- ORBIT DRAWING ---
-  function drawOrbit(altitudeKm, color) {
-    const positions = [];
-    const radius = 6378137 + altitudeKm * 1000;
+viewer.camera.setView({
+  destination: Cesium.Cartesian3.fromDegrees(0, 15, 14_500_000)
+});
 
-    for (let i = 0; i <= 360; i += 3) {
-      const rad = Cesium.Math.toRadians(i);
-      positions.push(Cesium.Cartesian3.fromRadians(rad, 0, radius));
+viewer.scene.screenSpaceCameraController.enableTilt = false;
+
+/* =====================================================
+   COLOR DEFINITIONS (MATCH YOUR LEGEND)
+   ===================================================== */
+
+const COLORS = {
+  CONGESTION: Cesium.Color.ORANGE,
+  RELIABILITY: Cesium.Color.LIME,
+  RISK: Cesium.Color.RED,
+  REFERENCE: Cesium.Color.CYAN
+};
+
+/* =====================================================
+   SAMPLE SATELLITE DATA (NASA-LIKE)
+   ===================================================== */
+
+const sampleSatellites = [
+  { name: "Landsat 8", lat: 10, lon: -60, alt: 705, color: COLORS.RELIABILITY },
+  { name: "Sentinel-6", lat: -20, lon: 30, alt: 1336, color: COLORS.RELIABILITY },
+  { name: "NOAA 21", lat: 45, lon: 80, alt: 824, color: COLORS.REFERENCE },
+  { name: "CYGNSS-4", lat: -10, lon: -100, alt: 520, color: COLORS.CONGESTION },
+  { name: "CYGNSS-8", lat: 30, lon: 140, alt: 520, color: COLORS.CONGESTION },
+  { name: "SWOT", lat: -35, lon: -10, alt: 890, color: COLORS.RELIABILITY },
+  { name: "PACE", lat: 5, lon: 60, alt: 676, color: COLORS.RELIABILITY },
+  { name: "ISS", lat: 0, lon: 0, alt: 420, color: COLORS.REFERENCE }
+];
+
+/* =====================================================
+   ORBIT DRAWING FUNCTION
+   ===================================================== */
+
+function drawOrbit(altitudeKm, inclinationDeg, color, opacity) {
+  const positions = [];
+  const radius = 6378137 + altitudeKm * 1000;
+
+  for (let i = 0; i <= 360; i += 3) {
+    positions.push(
+      Cesium.Cartesian3.fromRadians(
+        Cesium.Math.toRadians(i),
+        Cesium.Math.toRadians(inclinationDeg),
+        radius
+      )
+    );
+  }
+
+  viewer.entities.add({
+    polyline: {
+      positions,
+      width: 1,
+      material: color.withAlpha(opacity)
     }
-
-    viewer.entities.add({
-      polyline: {
-        positions,
-        width: 1,
-        material: color.withAlpha(0.6)
-      }
-    });
-  }
-
-  // --- ORBITAL SHELL ---
-  function drawShell(altitudeKm, color) {
-    viewer.entities.add({
-      ellipsoid: {
-        radii: new Cesium.Cartesian3(
-          6378137 + altitudeKm * 1000,
-          6378137 + altitudeKm * 1000,
-          6378137 + altitudeKm * 1000
-        ),
-        material: color.withAlpha(0.08),
-        outline: true,
-        outlineColor: color.withAlpha(0.3)
-      }
-    });
-  }
-
-  // --- CONJUNCTION RISK ZONE ---
-  function drawConjunctionZone(altitudeKm) {
-    const positions = [];
-    const radius = 6378137 + altitudeKm * 1000;
-
-    for (let i = 0; i <= 360; i += 6) {
-      const rad = Cesium.Math.toRadians(i);
-      positions.push(Cesium.Cartesian3.fromRadians(rad, 10, radius));
-    }
-
-    viewer.entities.add({
-      polyline: {
-        positions,
-        width: 4,
-        material: Cesium.Color.RED.withAlpha(0.4)
-      }
-    });
-  }
-
-  // --- STATIC ORBIT CONTEXT ---
-  drawOrbit(400, Cesium.Color.GREEN);
-  drawOrbit(550, Cesium.Color.ORANGE);
-  drawOrbit(700, Cesium.Color.RED);
-
-  fetch("/orbit/risk?altitude_km=550&inclination_deg=97")
-    .then(r => r.json())
-    .then(risk => {
-      const colorMap = {
-        LOW: Cesium.Color.GREEN,
-        MEDIUM: Cesium.Color.ORANGE,
-        HIGH: Cesium.Color.RED,
-        CRITICAL: Cesium.Color.DARKRED
-      };
-
-      drawShell(550, colorMap[risk.risk.level]);
-      drawConjunctionZone(550);
-    });
-
-  // --- NEAR REAL-TIME SATELLITES ---
-  async function updateSatellites() {
-    const sats = await fetch("/api/satellites").then(r => r.json());
-
-    for (const sat of sats) {
-      const position = Cesium.Cartesian3.fromDegrees(
-        sat.lon,
-        sat.lat,
-        sat.altitude_km * 1000
-      );
-
-      if (!satelliteEntities[sat.id]) {
-        satelliteEntities[sat.id] = viewer.entities.add({
-          id: sat.id,
-          name: sat.name,
-          position,
-          point: {
-            pixelSize: 10,
-            color: Cesium.Color.CYAN,
-            outlineColor: Cesium.Color.WHITE,
-            outlineWidth: 1
-          },
-          label: {
-            text: sat.name,
-            font: "12px sans-serif",
-            fillColor: Cesium.Color.WHITE,
-            pixelOffset: new Cesium.Cartesian2(0, -18),
-            showBackground: true,
-            backgroundColor: Cesium.Color.BLACK.withAlpha(0.6),
-            scale: 0.6
-          }
-        });
-      } else {
-        satelliteEntities[sat.id].position = position;
-      }
-    }
-  }
-
-  viewer.selectedEntityChanged.addEventListener(async function(entity) {
-    if (!entity) return;
-
-    const sats = await fetch("/api/satellites").then(r => r.json());
-    const sat = sats.find(s => s.id === entity.id);
-
-    const risk = await fetch(
-      `/orbit/risk?altitude_km=${sat.altitude_km}&inclination_deg=${sat.inclination_deg}`
-    ).then(r => r.json());
-
-    document.getElementById("details").innerHTML = `
-      <b>${sat.name}</b><br/><br/>
-      Orbit Shell: ${risk.orbit_shell}<br/>
-      Congestion Index: ${risk.metrics.congestion_index}<br/>
-      Collision Probability: ${risk.metrics.collision_probability}<br/>
-      <span style="color:${risk.risk.color}">
-        Risk Level: ${risk.risk.level}
-      </span>
-    `;
   });
+}
 
-  setInterval(updateSatellites, 3000);
+/* =====================================================
+   LAYERS (MATCHING YOUR IMAGE)
+   ===================================================== */
+
+// 🟠 Orbital congestion shells
+drawOrbit(500, 35, COLORS.CONGESTION, 0.4);
+drawOrbit(520, 35, COLORS.CONGESTION, 0.6);
+drawOrbit(550, 35, COLORS.CONGESTION, 0.8);
+
+// 🟢 Earth data reliability orbits
+drawOrbit(705, 98, COLORS.RELIABILITY, 0.6);
+drawOrbit(890, 77, COLORS.RELIABILITY, 0.5);
+
+// 🔴 Risk intelligence arc (alert zone)
+drawOrbit(550, 15, COLORS.RISK, 0.9);
+
+// 🔵 Reference orbit
+drawOrbit(420, 51.6, COLORS.REFERENCE, 0.7);
+
+/* =====================================================
+   SATELLITE POINTS + LABELS (NASA STYLE)
+   ===================================================== */
+
+for (const sat of sampleSatellites) {
+  viewer.entities.add({
+    name: sat.name,
+    position: Cesium.Cartesian3.fromDegrees(
+      sat.lon,
+      sat.lat,
+      sat.alt * 1000
+    ),
+    point: {
+      pixelSize: 9,
+      color: sat.color,
+      outlineColor: Cesium.Color.WHITE,
+      outlineWidth: 1
+    },
+    label: {
+      text: sat.name,
+      font: "12px sans-serif",
+      fillColor: Cesium.Color.WHITE,
+      pixelOffset: new Cesium.Cartesian2(0, -14),
+      showBackground: true,
+      backgroundColor: Cesium.Color.BLACK.withAlpha(0.6),
+      distanceDisplayCondition:
+        new Cesium.DistanceDisplayCondition(0, 18_000_000)
+    }
+  });
+}
+
+/* =====================================================
+   INTERACTION EXPLAINER
+   ===================================================== */
+
+viewer.selectedEntityChanged.addEventListener(entity => {
+  if (!entity) return;
+
+  document.getElementById("details").innerHTML = `
+    <b>${entity.name}</b><br/><br/>
+    This satellite operates within layered orbital contexts where
+    congestion, risk intelligence, and Earth-data reliability interact.
+  `;
+});
 </script>
 
 </body>
