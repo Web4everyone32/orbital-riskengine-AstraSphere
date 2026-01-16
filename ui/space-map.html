@@ -1,184 +1,179 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
   <title>AstraSphere – Orbital Intelligence</title>
 
-  <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
-  <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
-  <link rel="stylesheet" href="/static/astra.css">
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet"/>
+
+  <style>
+    html, body, #cesiumContainer {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: black;
+      overflow: hidden;
+    }
+
+    .overlay {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      color: white;
+      font-family: Arial, sans-serif;
+      z-index: 10;
+      max-width: 320px;
+    }
+
+    .overlay h1 {
+      margin: 0;
+      font-size: 22px;
+      color: #00e5ff;
+    }
+
+    .overlay p {
+      font-size: 13px;
+      opacity: 0.85;
+    }
+  </style>
 </head>
 
 <body>
-
 <div id="cesiumContainer"></div>
 
-<div id="panel">
-  <h2>AstraSphere</h2>
-  <p class="subtitle">Orbital & Earth Intelligence Platform</p>
-
-  <div id="details">
-    Multi-layer orbital context using representative satellite samples
-  </div>
-
-  <div class="legend">
-    <span style="color:#ff9f1c">● Orbital Congestion</span>
-    <span style="color:#2ecc71">● Earth Data Reliability</span>
-    <span style="color:#ff3b30">● Risk Intelligence</span>
-    <span style="color:#3498db">● Reference / Coordination</span>
-  </div>
+<div class="overlay">
+  <h1>AstraSphere</h1>
+  <p>Orbital Intelligence Platform</p>
+  <p><b>Click a satellite</b> to view orbital details.</p>
 </div>
 
 <script>
-/* =====================================================
-   BASE VIEWER (NASA-LIKE)
-   ===================================================== */
+  // =========================
+  // CESIUM VIEWER (EARTH MODE)
+  // =========================
 
-const viewer = new Cesium.Viewer("cesiumContainer", {
-  animation: true,
-  timeline: true,
-  baseLayerPicker: false,
-  geocoder: false,
-  homeButton: false,
-  sceneModePicker: false,
-  infoBox: false,
-  selectionIndicator: true,
-  imageryProvider: new Cesium.IonImageryProvider({ assetId: 2 })
-});
+  const viewer = new Cesium.Viewer("cesiumContainer", {
+    animation: true,
+    timeline: true,
+    shouldAnimate: true,
+    baseLayerPicker: false,
+    geocoder: false,
+    homeButton: true,
+    sceneModePicker: false,
+    navigationHelpButton: false,
+    imageryProvider: new Cesium.IonImageryProvider({ assetId: 2 }) // EARTH
+  });
 
-viewer.scene.skyBox.show = false;
-viewer.scene.sun.show = false;
-viewer.scene.moon.show = false;
-viewer.scene.backgroundColor = Cesium.Color.BLACK;
+  // === Force Earth Visibility ===
+  viewer.scene.globe.show = true;
+  viewer.scene.globe.enableLighting = true;
+  viewer.scene.skyAtmosphere.show = true;
 
-viewer.scene.globe.enableLighting = true;
-viewer.scene.skyAtmosphere.show = true;
-viewer.scene.globe.showGroundAtmosphere = true;
+  // === Camera MUST be Earth-centered ===
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(
+      0,    // longitude
+      20,   // latitude
+      15_000_000 // altitude (15,000 km)
+    )
+  });
 
-viewer.clock.multiplier = 120;
-viewer.clock.shouldAnimate = true;
+  // === Time ===
+  viewer.clock.multiplier = 60;
+  viewer.clock.shouldAnimate = true;
 
-viewer.camera.setView({
-  destination: Cesium.Cartesian3.fromDegrees(0, 15, 14_500_000)
-});
+  // =========================
+  // SAMPLE SATELLITES
+  // =========================
 
-viewer.scene.screenSpaceCameraController.enableTilt = false;
+  const satellites = [
+    {
+      name: "GRACE-FO",
+      altitude: 490000,
+      inclination: 89,
+      periodMinutes: 95,
+      color: Cesium.Color.CYAN,
+      launched: "2018-05-22"
+    },
+    {
+      name: "LANDSAT-8",
+      altitude: 705000,
+      inclination: 98.2,
+      periodMinutes: 99,
+      color: Cesium.Color.LIME,
+      launched: "2013-02-11"
+    }
+  ];
 
-/* =====================================================
-   COLOR DEFINITIONS (MATCH YOUR LEGEND)
-   ===================================================== */
+  function addOrbit(sat) {
+    const positions = [];
+    for (let i = 0; i <= 360; i++) {
+      const lon = i;
+      const lat = Math.sin(Cesium.Math.toRadians(i)) * sat.inclination;
+      positions.push(
+        Cesium.Cartesian3.fromDegrees(lon, lat, sat.altitude)
+      );
+    }
 
-const COLORS = {
-  CONGESTION: Cesium.Color.ORANGE,
-  RELIABILITY: Cesium.Color.LIME,
-  RISK: Cesium.Color.RED,
-  REFERENCE: Cesium.Color.CYAN
-};
-
-/* =====================================================
-   SAMPLE SATELLITE DATA (NASA-LIKE)
-   ===================================================== */
-
-const sampleSatellites = [
-  { name: "Landsat 8", lat: 10, lon: -60, alt: 705, color: COLORS.RELIABILITY },
-  { name: "Sentinel-6", lat: -20, lon: 30, alt: 1336, color: COLORS.RELIABILITY },
-  { name: "NOAA 21", lat: 45, lon: 80, alt: 824, color: COLORS.REFERENCE },
-  { name: "CYGNSS-4", lat: -10, lon: -100, alt: 520, color: COLORS.CONGESTION },
-  { name: "CYGNSS-8", lat: 30, lon: 140, alt: 520, color: COLORS.CONGESTION },
-  { name: "SWOT", lat: -35, lon: -10, alt: 890, color: COLORS.RELIABILITY },
-  { name: "PACE", lat: 5, lon: 60, alt: 676, color: COLORS.RELIABILITY },
-  { name: "ISS", lat: 0, lon: 0, alt: 420, color: COLORS.REFERENCE }
-];
-
-/* =====================================================
-   ORBIT DRAWING FUNCTION
-   ===================================================== */
-
-function drawOrbit(altitudeKm, inclinationDeg, color, opacity) {
-  const positions = [];
-  const radius = 6378137 + altitudeKm * 1000;
-
-  for (let i = 0; i <= 360; i += 3) {
-    positions.push(
-      Cesium.Cartesian3.fromRadians(
-        Cesium.Math.toRadians(i),
-        Cesium.Math.toRadians(inclinationDeg),
-        radius
-      )
-    );
+    viewer.entities.add({
+      polyline: {
+        positions: positions,
+        width: 2,
+        material: sat.color.withAlpha(0.6)
+      }
+    });
   }
 
-  viewer.entities.add({
-    polyline: {
-      positions,
-      width: 1,
-      material: color.withAlpha(opacity)
+  function addSatellite(sat) {
+    const start = Cesium.JulianDate.now();
+    const position = new Cesium.SampledPositionProperty();
+
+    for (let i = 0; i <= 360; i += 5) {
+      const time = Cesium.JulianDate.addSeconds(
+        start,
+        (sat.periodMinutes * 60 / 360) * i,
+        new Cesium.JulianDate()
+      );
+
+      const lon = i;
+      const lat = Math.sin(Cesium.Math.toRadians(i)) * sat.inclination;
+
+      position.addSample(
+        time,
+        Cesium.Cartesian3.fromDegrees(lon, lat, sat.altitude)
+      );
     }
+
+    viewer.entities.add({
+      name: sat.name,
+      position: position,
+      point: {
+        pixelSize: 9,
+        color: sat.color
+      },
+      label: {
+        text: sat.name,
+        font: "12px sans-serif",
+        pixelOffset: new Cesium.Cartesian2(10, -10),
+        showBackground: true,
+        backgroundColor: Cesium.Color.BLACK.withAlpha(0.6)
+      },
+      description: `
+        <b>${sat.name}</b><br/>
+        Altitude: ${(sat.altitude/1000).toFixed(0)} km<br/>
+        Inclination: ${sat.inclination}°<br/>
+        Period: ${sat.periodMinutes} min<br/>
+        Launched: ${sat.launched}
+      `
+    });
+  }
+
+  satellites.forEach(sat => {
+    addOrbit(sat);
+    addSatellite(sat);
   });
-}
-
-/* =====================================================
-   LAYERS (MATCHING YOUR IMAGE)
-   ===================================================== */
-
-// 🟠 Orbital congestion shells
-drawOrbit(500, 35, COLORS.CONGESTION, 0.4);
-drawOrbit(520, 35, COLORS.CONGESTION, 0.6);
-drawOrbit(550, 35, COLORS.CONGESTION, 0.8);
-
-// 🟢 Earth data reliability orbits
-drawOrbit(705, 98, COLORS.RELIABILITY, 0.6);
-drawOrbit(890, 77, COLORS.RELIABILITY, 0.5);
-
-// 🔴 Risk intelligence arc (alert zone)
-drawOrbit(550, 15, COLORS.RISK, 0.9);
-
-// 🔵 Reference orbit
-drawOrbit(420, 51.6, COLORS.REFERENCE, 0.7);
-
-/* =====================================================
-   SATELLITE POINTS + LABELS (NASA STYLE)
-   ===================================================== */
-
-for (const sat of sampleSatellites) {
-  viewer.entities.add({
-    name: sat.name,
-    position: Cesium.Cartesian3.fromDegrees(
-      sat.lon,
-      sat.lat,
-      sat.alt * 1000
-    ),
-    point: {
-      pixelSize: 9,
-      color: sat.color,
-      outlineColor: Cesium.Color.WHITE,
-      outlineWidth: 1
-    },
-    label: {
-      text: sat.name,
-      font: "12px sans-serif",
-      fillColor: Cesium.Color.WHITE,
-      pixelOffset: new Cesium.Cartesian2(0, -14),
-      showBackground: true,
-      backgroundColor: Cesium.Color.BLACK.withAlpha(0.6),
-      distanceDisplayCondition:
-        new Cesium.DistanceDisplayCondition(0, 18_000_000)
-    }
-  });
-}
-
-/* =====================================================
-   INTERACTION EXPLAINER
-   ===================================================== */
-
-viewer.selectedEntityChanged.addEventListener(entity => {
-  if (!entity) return;
-
-  document.getElementById("details").innerHTML = `
-    <b>${entity.name}</b><br/><br/>
-    This satellite operates within layered orbital contexts where
-    congestion, risk intelligence, and Earth-data reliability interact.
-  `;
-});
 </script>
 
 </body>

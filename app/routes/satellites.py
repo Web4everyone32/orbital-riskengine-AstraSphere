@@ -1,28 +1,32 @@
 from fastapi import APIRouter
-import time
-import math
+from datetime import datetime
+from app.services.propagation_service import (
+    propagate_at_time,
+    generate_ground_track
+)
+from app.services.conjunction_service import detect_conjunctions
+from app.services.tle_store import TLE_DATA
 
 router = APIRouter()
+SAT_NAMES = list(TLE_DATA.keys())
 
 @router.get("/api/satellites")
 def get_satellites():
-    t = time.time()
+    now = datetime.utcnow()
+    sats = []
 
-    return [
-        {
-            "id": "ASTRA-LEO-01",
-            "name": "AstraSphere DemoSat 1",
-            "altitude_km": 550,
-            "inclination_deg": 97,
-            "lat": math.sin(t / 30) * 30,
-            "lon": (t * 2) % 360 - 180
-        },
-        {
-            "id": "ASTRA-LEO-02",
-            "name": "AstraSphere DemoSat 2",
-            "altitude_km": 600,
-            "inclination_deg": 98,
-            "lat": math.cos(t / 40) * 45,
-            "lon": (t * 1.5) % 360 - 180
-        }
-    ]
+    for name in SAT_NAMES:
+        pos = propagate_at_time(name, now)
+        if pos:
+            pos["id"] = name
+            sats.append(pos)
+
+    return sats
+
+@router.get("/api/groundtrack/{sat_name}")
+def ground_track(sat_name: str):
+    return generate_ground_track(sat_name)
+
+@router.get("/api/conjunctions")
+def conjunctions():
+    return detect_conjunctions(SAT_NAMES)
