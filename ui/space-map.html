@@ -17,12 +17,14 @@
   <h2>AstraSphere</h2>
   <p class="subtitle">Orbital Intelligence Platform</p>
 
-  <div id="details">Click a satellite</div>
+  <div id="details">
+    Click a satellite
+  </div>
 
   <div class="legend">
-    <span class="low">● LOW RISK</span>
-    <span class="medium">● MEDIUM RISK</span>
-    <span class="high">● HIGH RISK</span>
+    <span style="color:green">● LOW RISK</span>
+    <span style="color:orange">● MEDIUM RISK</span>
+    <span style="color:red">● HIGH RISK</span>
   </div>
 
   <div class="risk-note">
@@ -31,72 +33,54 @@
   </div>
 
   <div class="time-note">
-    Use the time slider to observe orbital motion and evolving congestion.
+    Use the time slider to observe orbital motion and evolving
+    congestion context.
   </div>
 </div>
 
 <script>
-  /* ==============================
-     CESIUM VIEWER (EARTH FIRST)
-     ============================== */
-
   const viewer = new Cesium.Viewer('cesiumContainer', {
-    animation: true,
     timeline: true,
+    animation: true,
     baseLayerPicker: false,
     geocoder: false,
-    homeButton: false,
-    sceneModePicker: false,
     infoBox: false,
     selectionIndicator: true
   });
 
-  /* ---- VISUAL CLEANUP ---- */
-  viewer.scene.skyBox.show = false;              // Remove star dominance
-  viewer.scene.sun.show = false;                 // Remove blinding sun
-  viewer.scene.moon.show = false;
+  viewer.scene.globe.enableLighting = true;
   viewer.scene.backgroundColor = Cesium.Color.BLACK;
 
-  viewer.scene.globe.enableLighting = true;
-  viewer.scene.globe.baseColor = Cesium.Color.DARKGRAY;
-
-  /* ---- LOCK CAMERA TO EARTH ---- */
+  // --- LOCK CAMERA TO EARTH ---
   viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(0, 0, 14000000)
+    destination: Cesium.Cartesian3.fromDegrees(0, 0, 15000000)
   });
 
-  viewer.scene.screenSpaceCameraController.minimumZoomDistance = 7000000;
-  viewer.scene.screenSpaceCameraController.maximumZoomDistance = 40000000;
+  viewer.scene.screenSpaceCameraController.enableRotate = true;
+  viewer.scene.screenSpaceCameraController.enableZoom = true;
 
   const satelliteEntities = {};
 
-  /* ==============================
-     ORBIT VISUALS
-     ============================== */
-
+  // --- ORBIT DRAWING ---
   function drawOrbit(altitudeKm, color) {
     const positions = [];
     const radius = 6378137 + altitudeKm * 1000;
 
     for (let i = 0; i <= 360; i += 3) {
-      positions.push(
-        Cesium.Cartesian3.fromRadians(
-          Cesium.Math.toRadians(i),
-          0,
-          radius
-        )
-      );
+      const rad = Cesium.Math.toRadians(i);
+      positions.push(Cesium.Cartesian3.fromRadians(rad, 0, radius));
     }
 
     viewer.entities.add({
       polyline: {
         positions,
-        width: 1.2,
-        material: color.withAlpha(0.7)
+        width: 1,
+        material: color.withAlpha(0.6)
       }
     });
   }
 
+  // --- ORBITAL SHELL ---
   function drawShell(altitudeKm, color) {
     viewer.entities.add({
       ellipsoid: {
@@ -105,37 +89,33 @@
           6378137 + altitudeKm * 1000,
           6378137 + altitudeKm * 1000
         ),
-        material: color.withAlpha(0.07),
+        material: color.withAlpha(0.08),
         outline: true,
-        outlineColor: color.withAlpha(0.25)
+        outlineColor: color.withAlpha(0.3)
       }
     });
   }
 
+  // --- CONJUNCTION RISK ZONE ---
   function drawConjunctionZone(altitudeKm) {
     const positions = [];
     const radius = 6378137 + altitudeKm * 1000;
 
     for (let i = 0; i <= 360; i += 6) {
-      positions.push(
-        Cesium.Cartesian3.fromRadians(
-          Cesium.Math.toRadians(i),
-          Cesium.Math.toRadians(10),
-          radius
-        )
-      );
+      const rad = Cesium.Math.toRadians(i);
+      positions.push(Cesium.Cartesian3.fromRadians(rad, 10, radius));
     }
 
     viewer.entities.add({
       polyline: {
         positions,
         width: 4,
-        material: Cesium.Color.RED.withAlpha(0.45)
+        material: Cesium.Color.RED.withAlpha(0.4)
       }
     });
   }
 
-  /* ---- STATIC CONTEXT ---- */
+  // --- STATIC ORBIT CONTEXT ---
   drawOrbit(400, Cesium.Color.GREEN);
   drawOrbit(550, Cesium.Color.ORANGE);
   drawOrbit(700, Cesium.Color.RED);
@@ -154,10 +134,7 @@
       drawConjunctionZone(550);
     });
 
-  /* ==============================
-     SATELLITES (NEAR REAL TIME)
-     ============================== */
-
+  // --- NEAR REAL-TIME SATELLITES ---
   async function updateSatellites() {
     const sats = await fetch("/api/satellites").then(r => r.json());
 
@@ -174,16 +151,16 @@
           name: sat.name,
           position,
           point: {
-            pixelSize: 9,
+            pixelSize: 10,
             color: Cesium.Color.CYAN,
             outlineColor: Cesium.Color.WHITE,
             outlineWidth: 1
           },
           label: {
             text: sat.name,
-            font: "11px sans-serif",
+            font: "12px sans-serif",
             fillColor: Cesium.Color.WHITE,
-            pixelOffset: new Cesium.Cartesian2(0, -16),
+            pixelOffset: new Cesium.Cartesian2(0, -18),
             showBackground: true,
             backgroundColor: Cesium.Color.BLACK.withAlpha(0.6),
             scale: 0.6
