@@ -1,4 +1,4 @@
-## \# AstraSphere – Orbital Intelligence Core
+## AstraSphere – Orbital Intelligence Core
 
 ## 
 
@@ -6,7 +6,7 @@
 
 ## 
 
-## \## Module A Capabilities
+## Module A Capabilities :
 
 ## \- 3D Earth-centric space map (CesiumJS)
 
@@ -20,7 +20,7 @@
 
 ## 
 
-## \## Tech Stack
+## Tech Stack :
 
 ## \- FastAPI (backend)
 
@@ -30,11 +30,9 @@
 
 ## 
 
-## \## Run Locally
+## Run Locally :
 
 ## 
-
-## ```bash
 
 ## uvicorn app.main:app --reload
 
