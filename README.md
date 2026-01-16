@@ -32,8 +32,6 @@
 
 ## Run Locally :
 
-## 
-
 ## uvicorn app.main:app --reload
 
 
