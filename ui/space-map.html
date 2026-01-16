@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AstraSphere – Orbital Intelligence</title>
+
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+
+  <link rel="stylesheet" href="/static/astra.css">
+</head>
+
+<body>
+
+<div id="cesiumContainer"></div>
+
+<div id="panel">
+  <h2>AstraSphere</h2>
+  <p class="subtitle">Orbital Intelligence Platform</p>
+
+  <div id="details">
+    Click a satellite
+  </div>
+
+  <div class="legend">
+    <span style="color:green">● LOW RISK</span>
+    <span style="color:orange">● MEDIUM RISK</span>
+    <span style="color:red">● HIGH RISK</span>
+  </div>
+
+  <div class="risk-note">
+    Red orbital bands indicate regions of high object density and
+    elevated conjunction probability over the next 24–48 hours.
+  </div>
+
+  <div class="time-note">
+    Use the time slider to observe orbital motion and evolving
+    congestion context.
+  </div>
+</div>
+
+<script>
+  const viewer = new Cesium.Viewer('cesiumContainer', {
+    timeline: true,
+    animation: true,
+    baseLayerPicker: false,
+    geocoder: false,
+    infoBox: false,
+    selectionIndicator: true
+  });
+
+  viewer.scene.globe.enableLighting = true;
+  viewer.scene.backgroundColor = Cesium.Color.BLACK;
+
+  // --- LOCK CAMERA TO EARTH ---
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(0, 0, 15000000)
+  });
+
+  viewer.scene.screenSpaceCameraController.enableRotate = true;
+  viewer.scene.screenSpaceCameraController.enableZoom = true;
+
+  const satelliteEntities = {};
+
+  // --- ORBIT DRAWING ---
+  function drawOrbit(altitudeKm, color) {
+    const positions = [];
+    const radius = 6378137 + altitudeKm * 1000;
+
+    for (let i = 0; i <= 360; i += 3) {
+      const rad = Cesium.Math.toRadians(i);
+      positions.push(Cesium.Cartesian3.fromRadians(rad, 0, radius));
+    }
+
+    viewer.entities.add({
+      polyline: {
+        positions,
+        width: 1,
+        material: color.withAlpha(0.6)
+      }
+    });
+  }
+
+  // --- ORBITAL SHELL ---
+  function drawShell(altitudeKm, color) {
+    viewer.entities.add({
+      ellipsoid: {
+        radii: new Cesium.Cartesian3(
+          6378137 + altitudeKm * 1000,
+          6378137 + altitudeKm * 1000,
+          6378137 + altitudeKm * 1000
+        ),
+        material: color.withAlpha(0.08),
+        outline: true,
+        outlineColor: color.withAlpha(0.3)
+      }
+    });
+  }
+
+  // --- CONJUNCTION RISK ZONE ---
+  function drawConjunctionZone(altitudeKm) {
+    const positions = [];
+    const radius = 6378137 + altitudeKm * 1000;
+
+    for (let i = 0; i <= 360; i += 6) {
+      const rad = Cesium.Math.toRadians(i);
+      positions.push(Cesium.Cartesian3.fromRadians(rad, 10, radius));
+    }
+
+    viewer.entities.add({
+      polyline: {
+        positions,
+        width: 4,
+        material: Cesium.Color.RED.withAlpha(0.4)
+      }
+    });
+  }
+
+  // --- STATIC ORBIT CONTEXT ---
+  drawOrbit(400, Cesium.Color.GREEN);
+  drawOrbit(550, Cesium.Color.ORANGE);
+  drawOrbit(700, Cesium.Color.RED);
+
+  fetch("/orbit/risk?altitude_km=550&inclination_deg=97")
+    .then(r => r.json())
+    .then(risk => {
+      const colorMap = {
+        LOW: Cesium.Color.GREEN,
+        MEDIUM: Cesium.Color.ORANGE,
+        HIGH: Cesium.Color.RED,
+        CRITICAL: Cesium.Color.DARKRED
+      };
+
+      drawShell(550, colorMap[risk.risk.level]);
+      drawConjunctionZone(550);
+    });
+
+  // --- NEAR REAL-TIME SATELLITES ---
+  async function updateSatellites() {
+    const sats = await fetch("/api/satellites").then(r => r.json());
+
+    for (const sat of sats) {
+      const position = Cesium.Cartesian3.fromDegrees(
+        sat.lon,
+        sat.lat,
+        sat.altitude_km * 1000
+      );
+
+      if (!satelliteEntities[sat.id]) {
+        satelliteEntities[sat.id] = viewer.entities.add({
+          id: sat.id,
+          name: sat.name,
+          position,
+          point: {
+            pixelSize: 10,
+            color: Cesium.Color.CYAN,
+            outlineColor: Cesium.Color.WHITE,
+            outlineWidth: 1
+          },
+          label: {
+            text: sat.name,
+            font: "12px sans-serif",
+            fillColor: Cesium.Color.WHITE,
+            pixelOffset: new Cesium.Cartesian2(0, -18),
+            showBackground: true,
+            backgroundColor: Cesium.Color.BLACK.withAlpha(0.6),
+            scale: 0.6
+          }
+        });
+      } else {
+        satelliteEntities[sat.id].position = position;
+      }
+    }
+  }
+
+  viewer.selectedEntityChanged.addEventListener(async function(entity) {
+    if (!entity) return;
+
+    const sats = await fetch("/api/satellites").then(r => r.json());
+    const sat = sats.find(s => s.id === entity.id);
+
+    const risk = await fetch(
+      `/orbit/risk?altitude_km=${sat.altitude_km}&inclination_deg=${sat.inclination_deg}`
+    ).then(r => r.json());
+
+    document.getElementById("details").innerHTML = `
+      <b>${sat.name}</b><br/><br/>
+      Orbit Shell: ${risk.orbit_shell}<br/>
+      Congestion Index: ${risk.metrics.congestion_index}<br/>
+      Collision Probability: ${risk.metrics.collision_probability}<br/>
+      <span style="color:${risk.risk.color}">
+        Risk Level: ${risk.risk.level}
+      </span>
+    `;
+  });
+
+  setInterval(updateSatellites, 3000);
+</script>
+
+</body>
+</html>
